@@ -1340,6 +1340,33 @@ body.v2{
   .v2 .avail-dot::after,.v2 .skel,.v2 .skel-line,.v2 .portfolio-img,.v2 .bento-photo{animation:none!important;}
   .v2 .nail{transition:none;}
 }
+
+/* ════════ 18. RENDIMIENTO (navegación más fluida en celular y computadora) ════════ */
+/* Tarjetas: el desenfoque en vivo (backdrop-filter) se recalculaba en cada cuadro de
+   animación y al cambiar de pestaña. Detrás solo hay un degradado suave, así que sin
+   él se ven prácticamente igual y cuesta mucho menos. El menú superior conserva su
+   efecto de vidrio. */
+.v2 .bento-tile,.v2 .stat-card,.v2 .sobre-card,.v2 .services-category,.v2 .booking-card,
+.v2 .review-card,.v2 .review-form-glass,.v2 .contact-map,.v2 .contact-item-row,
+.service-card,.booking-card,.review-card,.portfolio-item{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}
+/* Textura de grano y cinta de servicios en capas propias: ya no obligan a
+   redibujar toda la pantalla mientras la cinta se mueve. */
+.v2 .hero-grain{will-change:transform;contain:strict;}
+.marquee-track{will-change:transform;}
+.hero-strip{contain:layout paint;}
+/* El cambio de pestaña (fundido) lo hace la tarjeta gráfica. */
+.page.active,.page.exit{will-change:opacity,transform;}
+/* Brillo dorado del título: 3 pasadas y se detiene (antes era infinito). */
+.ht-italic{animation:lineReveal 1s cubic-bezier(.22,1,.36,1) both .5s, goldShimmer 4s linear 1.5s 3!important;}
+/* Entrada de tarjetas al abrir una pestaña: más rápida. */
+.anim-slide-left,.anim-slide-up,.anim-slide-right{animation-duration:.4s!important;}
+/* "both": durante la pequeña espera escalonada la tarjeta queda en su estado inicial
+   (antes se veía, desaparecía y volvía a aparecer: un parpadeo). */
+.anim-slide-left,.anim-slide-up,.anim-slide-right,.anim-scale{animation-fill-mode:both!important;}
+.anim-scale{animation-duration:.35s!important;}
+.anim-delay-1{animation-delay:.04s!important;}.anim-delay-2{animation-delay:.08s!important;}
+.anim-delay-3{animation-delay:.12s!important;}.anim-delay-4{animation-delay:.16s!important;}
+.anim-delay-5{animation-delay:.2s!important;}
 </style>
 </head>
 <body class="v2">
@@ -2137,9 +2164,10 @@ function renderCalendar() {
   const y=currentDate.getFullYear(), m=currentDate.getMonth();
   document.getElementById('calMonth').textContent = monthNames[m]+' '+y;
   const grid=document.getElementById('calGrid');
-  grid.innerHTML = dayNames.map(d=>'<div class="cal-day-name">'+d+'</div>').join('');
+  // Se arma todo el HTML y se asigna una sola vez (antes se redibujaba el calendario ~40 veces)
+  let html = dayNames.map(d=>'<div class="cal-day-name">'+d+'</div>').join('');
   const firstDay=new Date(y,m,1).getDay();
-  for(let i=0;i<firstDay;i++) grid.innerHTML+='<div class="cal-day empty"></div>';
+  for(let i=0;i<firstDay;i++) html+='<div class="cal-day empty"></div>';
   const days=new Date(y,m+1,0).getDate(), today=new Date();
   for(let d=1;d<=days;d++){
     const date=new Date(y,m,d);
@@ -2153,8 +2181,9 @@ function renderCalendar() {
     else if(isSel) cls+=' selected';
     else if(isToday) cls+=' today';
     else if(hasBk) cls+=' has-booking';
-    grid.innerHTML+='<div class="'+cls+'" onclick="selectDay('+d+',\''+key+'\','+(isPast||isOff)+')">'+d+'</div>';
+    html+='<div class="'+cls+'" onclick="selectDay('+d+',\''+key+'\','+(isPast||isOff)+')">'+d+'</div>';
   }
+  grid.innerHTML = html;
 }
 renderCalendar();
 // Re-render calendar after Firebase loads
@@ -2827,9 +2856,13 @@ function setupScrollAnimations(pageId) {
 
 // Hook into showPage for animations
 var origShowPage = window.showPage;
+// Las tarjetas se animan solo la primera vez que se abre cada pestaña, y se preparan
+// ANTES de mostrarla (antes se mostraban, se ocultaban 30 ms después y volvían a
+// aparecer una por una en cada visita, lo que hacía sentir lenta la navegación).
+var animatedPages = { inicio: true };
 window.showPage = function(id, pushState) {
+  if (id !== currentPage && !animatedPages[id]) { animatedPages[id] = true; setupScrollAnimations(id); }
   origShowPage(id, pushState);
-  setTimeout(function() { setupScrollAnimations(id); }, 30);
   if (id === 'inicio') { setTimeout(doCounters, 500); }
   if (id === 'sobre') { setTimeout(window.startGoldSweep, 200); }
 };
