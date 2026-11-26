@@ -1,0 +1,11 @@
+{
+  "name": "adi-nails",
+  "private": true,
+  "description": "Sitio de Adi Nails. Solo el recordatorio por correo (api/) usa dependencias.",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.5.1"
+  }
+}
