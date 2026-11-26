@@ -366,6 +366,22 @@ window.listenConfig = function() {
       return true;
     } catch(e) { console.error('Error guardando fechas bloqueadas:', e); return false; }
   };
+  // ── FOTOS DE SECCIONES (Sobre Adi, Manos, Pies) ──
+  // Documento config/fotos: { sobre: url, manos: url, pies: url }. Si falta una,
+  // la página usa una foto del portafolio.
+  window.saveSectionPhotosToDB = async function(data) {
+    try {
+      await setDoc(doc(db, 'config', 'fotos'), data);
+      return true;
+    } catch(e) { console.error('Error guardando fotos de secciones:', e); return false; }
+  };
+  window.listenSectionPhotos = function() {
+    onSnapshot(doc(db, 'config', 'fotos'), (snap) => {
+      window._sectionPhotos = snap.exists() ? (snap.data() || {}) : {};
+      if (typeof window.onSectionPhotosChange === 'function') window.onSectionPhotosChange();
+    });
+  };
+
   window.listenBlockedDates = function() {
     onSnapshot(doc(db, 'config', 'fechasBloqueadas'), (snap) => {
       const list = (snap.exists() && Array.isArray(snap.data().list)) ? snap.data().list : [];
@@ -380,6 +396,7 @@ window.listenConfig = function() {
     window.listenPortfolio();
     window.listenConfig();
     window.listenBlockedDates();
+    window.listenSectionPhotos();
     window.listenResenas();
     window.listenCategorias();
   });
@@ -1430,26 +1447,35 @@ body.v2{
 .v2 .v3-arch:nth-child(2){animation-delay:.3s;}
 .v2 .v3-arch:nth-child(3){animation-delay:.45s;}
 
-/* ── Sobre Adi ── */
-.v2 .v3-sobre{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:72px;align-items:start;}
-.v2 .v3-quote{font-family:var(--v2-serif);font-style:italic;font-size:26px;line-height:1.35;color:var(--v2-laca);margin:36px 0 0;max-width:24ch;}
-.v2 .v3-values{list-style:none;margin:8px 0 0;padding:0;}
-.v2 .v3-values li{padding:24px 0;border-top:1px solid var(--v2-line-2);}
-.v2 .v3-values li:last-child{border-bottom:1px solid var(--v2-line-2);}
-.v2 .v3-values h3{font-family:var(--v2-serif);font-weight:500;font-size:22px;color:var(--v2-cacao);margin:0 0 6px;}
-.v2 .v3-values p{font-size:15px;line-height:1.6;color:var(--v2-topo);margin:0;}
+/* ── Sobre Adi: texto a la izquierda, foto vertical grande a la derecha ── */
+.v2 .v3-sobre{display:grid;grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:72px;align-items:center;}
+.v2 .v3-sobre .v3-body{margin-top:18px;}
+.v2 .v3-sobre .v3-body:first-of-type{margin-top:26px;}
+.v2 .v3-sobre .v3-body strong{font-weight:600;color:var(--v2-cacao);}
+.v2 .v3-quote{font-family:var(--v2-serif);font-style:italic;font-size:26px;line-height:1.35;color:var(--v2-laca);margin:32px 0 0;max-width:24ch;}
+.v2 .v3-sobre .v3-actions{margin-top:32px;}
+.v2 .v3-sobre-photo{margin:0;position:relative;aspect-ratio:4/5;border-radius:var(--v3-arch);overflow:hidden;background:var(--v2-arena);}
+.v2 .v3-sobre-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+.v2 .v3-sobre-photo.is-empty{display:none;}
 
-/* ── Servicios: lista de precios, sin tarjetas ── */
+/* ── Servicios: un bloque por categoría, foto + lista de precios ── */
 .v2 #servicesContainer{display:block;}
-.v2 #servicesContainer .services-category{display:grid;grid-template-columns:200px minmax(0,1fr);gap:40px;padding:28px 0;margin:0;border:0!important;border-top:1px solid var(--v2-line-2)!important;border-radius:0;background:transparent!important;box-shadow:none!important;}
-.v2 #servicesContainer .services-category:last-child{border-bottom:1px solid var(--v2-line-2)!important;}
-.v2 #servicesContainer .category-label{font-size:30px;font-weight:400;border:0;padding:0;margin:4px 0 0;align-self:start;position:sticky;top:88px;}
-.v2 #servicesContainer .services-grid{display:grid;grid-template-columns:1fr;column-gap:48px;}
-.v2 #servicesContainer .services-category:first-child .services-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
-.v2 #servicesContainer .service-card{padding:14px 0;}
-.v2 #servicesContainer .services-category:first-child .service-card:nth-last-child(2):nth-child(odd){border-bottom:0!important;}
-.v2 #servicesContainer .service-price{font-variant-numeric:lining-nums tabular-nums;font-size:20px;}
-.v2 #servicesContainer .service-card:hover .service-name{color:var(--v2-cacao);}
+.v2 .v3-svc{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:72px;align-items:center;padding:48px 0;border-top:1px solid var(--v2-line-2);}
+.v2 .v3-svc:first-child{border-top:0;padding-top:8px;}
+.v2 .v3-svc-flip .v3-svc-photo{order:2;}
+.v2 .v3-svc.no-photo{grid-template-columns:minmax(0,1fr);}
+.v2 .v3-svc.no-photo .v3-svc-body{max-width:640px;}
+.v2 .v3-svc-photo{margin:0;position:relative;aspect-ratio:4/5;border-radius:var(--v3-arch);overflow:hidden;background:var(--v2-arena);}
+.v2 .v3-svc-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+/* Categorías con pocos servicios: foto más baja para que no domine */
+.v2 .v3-svc-pies .v3-svc-photo{aspect-ratio:5/4;}
+.v2 .v3-svc-title{font-family:var(--v2-serif);font-style:italic;font-weight:400;font-size:clamp(40px,5vw,64px);line-height:1;letter-spacing:-.02em;color:var(--v2-cacao);margin:0;}
+.v2 .v3-svc-intro{font-size:17px;line-height:1.65;color:var(--v2-topo);max-width:46ch;margin:18px 0 0;}
+.v2 .v3-price-list{list-style:none;margin:28px 0 0;padding:0;border-top:1px solid var(--v2-champ);}
+.v2 .v3-price-list li{display:flex;align-items:baseline;justify-content:space-between;gap:20px;padding:13px 0;border-bottom:1px solid var(--v2-line);}
+.v2 .v3-price-name{font-size:16px;font-weight:500;color:var(--v2-cacao);}
+.v2 .v3-price-dur{display:block;font-size:13px;font-weight:400;color:var(--v2-topo);margin-top:2px;}
+.v2 .v3-price{font-family:var(--v2-serif);font-size:20px;font-weight:500;color:var(--v2-cacao);white-space:nowrap;font-variant-numeric:lining-nums tabular-nums;}
 
 /* ── Portafolio: fotos en forma de uña ── */
 .v2 #portfolioGrid{grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:auto;gap:40px 22px;}
@@ -1500,12 +1526,13 @@ body.v2{
   .v2 .v3-arch:nth-child(3){margin-top:64px;}
   .v2 .v3-arch-cap{font-size:13.5px;margin-top:8px;}
   .v2 .v3-sobre,.v2 .v3-contact{grid-template-columns:1fr;gap:40px;}
+  .v2 .v3-sobre-photo{order:-1;aspect-ratio:1/1;max-height:420px;}
+  .v2 .v3-svc{grid-template-columns:1fr;gap:28px;padding:36px 0;}
+  .v2 .v3-svc-flip .v3-svc-photo{order:0;}
+  .v2 .v3-svc-photo{aspect-ratio:1/1;}
+  .v2 .v3-svc-intro{font-size:16px;}
   .v2 .v3-wrap{padding:96px 20px 104px;}
   .v2 .inner-page{padding-bottom:104px;}
-  .v2 #servicesContainer .services-category{grid-template-columns:1fr;gap:4px;padding:22px 0;}
-  .v2 #servicesContainer .category-label{position:static;font-size:26px;}
-  .v2 #servicesContainer .services-category:first-child .services-grid{grid-template-columns:1fr;}
-  .v2 #servicesContainer .services-category:first-child .service-card:nth-last-child(2):nth-child(odd){border-bottom:1px solid var(--v2-line)!important;}
   .v2 #portfolioGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px 12px;}
   .v2 #portfolioGrid .portfolio-title{font-size:16px;}
 }
@@ -1584,16 +1611,14 @@ body.v2{
 <div class="page" id="page-sobre">
   <div class="v3-wrap v3-sobre">
     <div class="v3-sobre-main">
-      <h2 class="v3-title">Adilem Kuhlman</h2>
-      <p class="v3-lead">Le dicen Adi. Manicurista y pedicurista profesional en Ciudad Colón.</p>
-      <p class="v3-body">Adilem Kuhlman, conocida como Adi, es una especialista en manicura y pedicura con 2 años de experiencia dedicada al cuidado y embellecimiento de las uñas. Su enfoque va más allá de lo estético: busca brindar una experiencia cómoda, relajante y de alta calidad para cada persona que confía en su trabajo.</p>
+      <h2 class="v3-title">Sobre Adi</h2>
+      <p class="v3-body"><strong>Adilem Kuhlman</strong>, conocida como Adi, es manicurista y pedicurista en Ciudad Colón. Desde hace 2 años se dedica al cuidado y embellecimiento de las uñas, y ya son más de 200 las clientas que confían en su trabajo.</p>
+      <p class="v3-body">Para Adi, una cita va más allá de lo estético. Busca que te sientas cómoda, atendida y valorada, con un trato cercano y el tiempo que cada diseño necesita.</p>
+      <p class="v3-body">Trabaja con técnicas modernas como Gel X, rubber base y semipermanente, cuidando cada detalle para que el resultado se vea impecable y dure.</p>
       <blockquote class="v3-quote">Elegancia en cada detalle, belleza en cada toque.</blockquote>
+      <div class="v3-actions"><button type="button" class="v3-btn" onclick="showPage('agendar')">Agendar cita</button></div>
     </div>
-    <ul class="v3-values">
-      <li><h3>Pasión por el detalle</h3><p>Compromiso con el trabajo bien hecho, cuidando cada detalle para lograr resultados impecables y duraderos.</p></li>
-      <li><h3>Atención personalizada</h3><p>Cada servicio está pensado para que te sientas cómoda, atendida y valorada, con un trato cercano.</p></li>
-      <li><h3>Alta calidad</h3><p>Técnicas modernas y un enfoque profesional para resaltar la belleza natural de tus uñas.</p></li>
-    </ul>
+    <figure class="v3-sobre-photo" id="sobrePhoto"></figure>
   </div>
 </div>
 
@@ -1778,6 +1803,12 @@ body.v2{
 <input type="hidden" id="newDesignCat" value="">
       <div class="form-group"><label class="form-label">Descripción</label><textarea class="edit-textarea" id="newDesignDesc" placeholder="Técnica, materiales, detalles..."></textarea></div>
       <button class="save-btn" id="btnPublish" onclick="adminAddDesign()">Publicar diseño</button>
+
+      <hr class="blk-hr">
+      <div class="blk-section-title">Fotos de las secciones</div>
+      <p style="font-size:13px;color:var(--brown1);margin-bottom:.875rem;">Fotos grandes de "Sobre Adi" y de los servicios de manos y pies. Si no subes una, se usa una foto de tu portafolio.</p>
+      <div id="sectionPhotosEditor"></div>
+      <input type="file" id="sectionPhotoInput" accept="image/*" style="display:none" onchange="adminUploadSectionPhoto(this)">
     </div>
 
     <!-- SERVICIOS -->
@@ -2151,17 +2182,63 @@ function mobileGo(id) { closeMobileNav(); setTimeout(() => showPage(id), 200); }
 function getAllServices() { return [...window._servicesData.manos,...window._servicesData.pies,...window._servicesData.otros]; }
 function getSelectedService() { return getAllServices().find(s => s.id === document.getElementById('bookingService').value); }
 
+// Textos de cada categoría (las fotos se suben desde Admin → Portafolio)
+const catIntro={
+  manos:'Desde un semipermanente liso hasta Gel X con diseño. Elige tu servicio y, al agendar, cuéntale a Adi qué diseño te gustaría.',
+  pies:'Semipermanente para pies, con o sin spa, con el mismo detalle que en tus manos.',
+  otros:''
+};
+const catPhotoAlt={manos:'Manicura hecha por Adi',pies:'Pedicura hecha por Adi',sobre:'Trabajo de Adi Nails'};
+
+// Foto de una sección: la que Adi subió, o una del portafolio como respaldo
+function getSectionPhoto(key) {
+  var custom = (window._sectionPhotos || {})[key];
+  if (custom) return custom;
+  var items = (window.portfolioItems || []).filter(function(i){ return i && i.imgUrl; });
+  var esPie = function(i){ return /pie|pedi/i.test((i.cat||'')+' '+(i.name||'')+' '+(i.desc||'')); };
+  if (key === 'pies') { var p = items.find(esPie); return p ? p.imgUrl : null; }
+  if (key === 'manos') { var m = items.find(function(i){ return !esPie(i); }); return m ? m.imgUrl : null; }
+  return items.length ? items[0].imgUrl : null;
+}
+function sectionPhotoHTML(key, w) {
+  var url = getSectionPhoto(key);
+  if (!url) return '';
+  return '<img src="'+blkEsc(cldUrl(url, w))+'" srcset="'+blkEsc(cldSrcset(url))+'" sizes="(max-width:900px) 100vw, 560px" alt="'+blkEsc(catPhotoAlt[key]||'')+'" loading="lazy" decoding="async">';
+}
+
 function renderServices() {
   const c = document.getElementById('servicesContainer'); c.innerHTML = '';
   const sd = window._servicesData;
-  ['manos','pies','otros'].forEach(cat => {
-    const sec = document.createElement('div'); sec.className='services-category';
-    sec.innerHTML = '<h3 class="category-label">'+catTitles[cat]+'</h3><div class="services-grid">'+
-      sd[cat].map(s=>'<div class="service-card"><div class="service-name">'+s.name+'</div><div class="service-price">'+s.price+'</div><div class="service-duration">'+s.range+'</div></div>').join('')+'</div>';
+  ['manos','pies','otros'].forEach((cat, idx) => {
+    const list = sd[cat] || [];
+    if (!list.length) return;
+    const photo = cat === 'otros' ? '' : sectionPhotoHTML(cat, 900);
+    const sec = document.createElement('section');
+    sec.className = 'v3-svc v3-svc-' + cat + (photo ? '' : ' no-photo') + (idx % 2 ? ' v3-svc-flip' : '');
+    sec.innerHTML =
+      (photo ? '<figure class="v3-svc-photo">'+photo+'</figure>' : '') +
+      '<div class="v3-svc-body">' +
+        '<h3 class="v3-svc-title">'+catTitles[cat]+'</h3>' +
+        (catIntro[cat] ? '<p class="v3-svc-intro">'+catIntro[cat]+'</p>' : '') +
+        '<ul class="v3-price-list">' + list.map(s =>
+          '<li><span class="v3-price-name">'+blkEsc(s.name)+'<span class="v3-price-dur">'+blkEsc(s.range)+'</span></span><span class="v3-price">'+blkEsc(s.price)+'</span></li>'
+        ).join('') + '</ul>' +
+      '</div>';
     c.appendChild(sec);
   });
   if (typeof window.v2AfterServices === 'function') window.v2AfterServices();
 }
+function renderSobrePhoto() {
+  var fig = document.getElementById('sobrePhoto');
+  if (!fig) return;
+  var html = sectionPhotoHTML('sobre', 900);
+  fig.innerHTML = html;
+  fig.classList.toggle('is-empty', !html);
+}
+window.onSectionPhotosChange = function() {
+  renderServices(); renderSobrePhoto();
+  if (isAdmin) renderSectionPhotosEditor();
+};
 renderServices();
 
 function populateBookingSelect() {
@@ -2485,7 +2562,7 @@ function doLogout() {
   isAdmin=false; const btn=document.getElementById('adminNavBtn'); btn.textContent='Admin'; btn.style.cssText='';
   document.getElementById('adminPanel').classList.remove('open');
 }
-function openAdmin() { renderCitas(); renderServicesEditor(); renderScheduleEditor(); renderBlockedDatesEditor(); renderAdminPortfolio(); loadCategories(); document.getElementById('adminPanel').classList.add('open'); }
+function openAdmin() { renderCitas(); renderServicesEditor(); renderScheduleEditor(); renderBlockedDatesEditor(); renderSectionPhotosEditor(); renderAdminPortfolio(); loadCategories(); document.getElementById('adminPanel').classList.add('open'); }
 function closeAdmin() { document.getElementById('adminPanel').classList.remove('open'); }
 function switchTab(btn,tabId) {
   document.querySelectorAll('.admin-tab').forEach(t=>t.classList.remove('active'));
@@ -2780,6 +2857,71 @@ async function saveSchedule() {
   else showToast('Error al guardar','error');
 }
 
+// ── ADMIN: FOTOS DE LAS SECCIONES ──
+var SECTION_PHOTO_SLOTS = [
+  { key: 'sobre', label: 'Sobre Adi', hint: 'Ideal: Adi trabajando, foto vertical' },
+  { key: 'manos', label: 'Servicios de manos', hint: 'Una manicura terminada' },
+  { key: 'pies',  label: 'Servicios de pies', hint: 'Una pedicura terminada' }
+];
+var sectionPhotoTarget = null;
+function renderSectionPhotosEditor() {
+  var el = document.getElementById('sectionPhotosEditor');
+  if (!el) return;
+  var custom = window._sectionPhotos || {};
+  el.innerHTML = '';
+  SECTION_PHOTO_SLOTS.forEach(function(slot) {
+    var url = getSectionPhoto(slot.key);
+    var row = document.createElement('div');
+    row.className = 'admin-portfolio-item';
+    var thumb = document.createElement('div');
+    thumb.className = 'admin-portfolio-thumb';
+    if (url) { var img = document.createElement('img'); img.src = cldUrl(url, 120); img.alt = ''; thumb.appendChild(img); }
+    else thumb.textContent = '📷';
+    var info = document.createElement('div');
+    info.className = 'admin-portfolio-info';
+    info.innerHTML = '<div class="admin-portfolio-name">' + slot.label + '</div><div class="admin-portfolio-desc" style="white-space:normal;max-width:none;">' +
+      (custom[slot.key] ? 'Foto propia' : (url ? 'Usando una foto del portafolio' : 'Sin foto: la sección se muestra sin imagen')) + ' · ' + slot.hint + '</div>';
+    var actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;flex-direction:column;gap:6px;flex-shrink:0;';
+    var up = document.createElement('button');
+    up.type = 'button'; up.className = 'blk-unblock'; up.textContent = custom[slot.key] ? 'Cambiar' : 'Subir foto';
+    up.addEventListener('click', function() { sectionPhotoTarget = slot.key; document.getElementById('sectionPhotoInput').click(); });
+    actions.appendChild(up);
+    if (custom[slot.key]) {
+      var rm = document.createElement('button');
+      rm.type = 'button'; rm.className = 'blk-unblock'; rm.textContent = 'Quitar';
+      rm.addEventListener('click', function() { adminRemoveSectionPhoto(slot.key, slot.label); });
+      actions.appendChild(rm);
+    }
+    row.appendChild(thumb); row.appendChild(info); row.appendChild(actions);
+    el.appendChild(row);
+  });
+}
+async function adminUploadSectionPhoto(input) {
+  var file = input.files && input.files[0];
+  var key = sectionPhotoTarget;
+  input.value = '';
+  if (!file || !key) return;
+  if (!/^image\//.test(file.type)) { showToast('El archivo debe ser una imagen', 'error'); return; }
+  if (file.size > 5 * 1024 * 1024) { showToast('La foto pesa más de 5 MB. Elige una más liviana.', 'error'); return; }
+  showToast('Subiendo foto...');
+  var url = await window.uploadToCloudinary(file);
+  if (!url) { showToast('No se pudo subir la foto. Intenta de nuevo.', 'error'); return; }
+  var data = Object.assign({}, window._sectionPhotos || {});
+  data[key] = url;
+  var ok = await window.saveSectionPhotosToDB(data);
+  if (ok) showToast('✅ Foto actualizada');
+  else showToast('No se pudo guardar la foto. Intenta de nuevo.', 'error');
+}
+async function adminRemoveSectionPhoto(key, label) {
+  if (!confirm('¿Quitar la foto de "' + label + '"?\nSe usará una foto de tu portafolio.')) return;
+  var data = Object.assign({}, window._sectionPhotos || {});
+  delete data[key];
+  var ok = await window.saveSectionPhotosToDB(data);
+  if (ok) showToast('Foto quitada');
+  else showToast('No se pudo quitar la foto. Intenta de nuevo.', 'error');
+}
+
 // ── ADMIN: FECHAS ESPECÍFICAS BLOQUEADAS ──
 // Clave de fecha con el mismo formato que las citas: "AAAA-M-D" con mes empezando en 0
 function blkKeyFromInput(value) {
@@ -3058,6 +3200,7 @@ window.v2AfterPortfolio = function() {
     document.querySelectorAll('.portfolio-img img').forEach(function(img) {
       if (img.complete && img.naturalWidth > 0) img.parentNode.classList.add('is-loaded');
     });
+    if (typeof renderSobrePhoto === 'function') { renderSobrePhoto(); renderServices(); if (isAdmin) renderSectionPhotosEditor(); }
     var arches = document.querySelectorAll('#heroArches .v3-arch');
     if (!arches.length) return;
     var items = (window.portfolioItems || []).filter(function(i){ return i && i.imgUrl; }).slice(0, arches.length);
@@ -3127,6 +3270,7 @@ window.renderContactHours = function() {
 window.v2AfterServices();
 window.v2UpdateAvailability();
 window.renderContactHours();
+renderSobrePhoto();
 setInterval(window.v2UpdateAvailability, 5 * 60 * 1000);
 </script>
 </body>
