@@ -138,6 +138,7 @@
       if (window.currentPage === 'agendar') window.renderCalendar();
       if (window.isAdmin && document.getElementById('citasList')) window.renderCitas();
       if (typeof window.v2UpdateAvailability === 'function') window.v2UpdateAvailability();
+      if (typeof window.refreshBlockedDatesEditor === 'function') window.refreshBlockedDatesEditor();
     });
   };
 
@@ -354,11 +355,30 @@ window.listenConfig = function() {
     } catch(e) { console.error(e); return false; }
   };
 
+  // ── FECHAS ESPECÍFICAS BLOQUEADAS (vacaciones, días libres) ──
+  // Documento aparte: no toca config/horario ni las citas.
+  // Formato: { list: [{ fecha: "2026-10-30", motivo: "Vacaciones" }] }
+  // (fecha usa el mismo formato que dateKey de las citas: mes empezando en 0)
+  window.saveBlockedDatesToDB = async function(list) {
+    try {
+      await setDoc(doc(db, 'config', 'fechasBloqueadas'), { list: list });
+      return true;
+    } catch(e) { console.error('Error guardando fechas bloqueadas:', e); return false; }
+  };
+  window.listenBlockedDates = function() {
+    onSnapshot(doc(db, 'config', 'fechasBloqueadas'), (snap) => {
+      const list = (snap.exists() && Array.isArray(snap.data().list)) ? snap.data().list : [];
+      window._blockedDates = list;
+      if (typeof window.onBlockedDatesChange === 'function') window.onBlockedDatesChange();
+    });
+  };
+
   // Iniciar listeners cuando la página cargue
   window.addEventListener('load', () => {
     window.listenCitas();
     window.listenPortfolio();
     window.listenConfig();
+    window.listenBlockedDates();
     window.listenResenas();
     window.listenCategorias();
   });
@@ -664,6 +684,21 @@ nav.on-hero .nav-links a.active-nav{border-bottom-color:var(--gold2);color:var(-
 .cita-btn-cancel{background:#FEECEC;color:#8A2020;}.cita-btn-cancel:hover{background:#FAD5D5;}
 .cita-btn-wa{background:rgba(37,211,102,.1);color:#1A6B3A;}.cita-btn-wa:hover{background:rgba(37,211,102,.22);}
 .citas-empty{text-align:center;padding:1.75rem;color:var(--brown1);font-size:13px;}
+/* Fechas específicas bloqueadas (admin) */
+.blk-section-title{font-size:12px;font-weight:600;color:var(--brown2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.4rem;}
+.blk-section-title span{font-weight:400;text-transform:none;letter-spacing:0;color:var(--brown1);opacity:.75;margin-left:4px;}
+.blk-hr{border:none;border-top:1px solid rgba(139,110,82,.15);margin:1.5rem 0 1.125rem;}
+.blk-form{background:var(--beige2);border-radius:10px;padding:.875rem;margin-bottom:1.125rem;}
+.blk-form .form-group{margin-bottom:.625rem;}
+.blk-form .save-btn{margin-top:.25rem;}
+.blk-list-title{font-size:11px;font-weight:500;color:var(--brown1);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem;}
+.blk-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:.625rem .75rem;background:var(--beige2);border-radius:9px;margin-bottom:.4rem;border:1px solid rgba(139,110,82,.08);}
+.blk-item-date{font-size:13px;font-weight:500;color:var(--brown2);}
+.blk-item-reason{font-size:11px;color:var(--brown1);opacity:.8;margin-top:2px;word-break:break-word;}
+.blk-item-warn{font-size:11px;color:#8A6200;margin-top:2px;}
+.blk-unblock{flex-shrink:0;font-size:11px;padding:6px 12px;border-radius:100px;border:1px solid rgba(139,110,82,.25);background:white;color:var(--brown2);cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-weight:500;}
+.blk-unblock:hover{background:var(--brown2);color:white;}
+.blk-empty{font-size:12px;color:var(--brown1);opacity:.7;padding:.5rem 0;}
 .citas-filter{display:flex;gap:5px;margin-bottom:.875rem;flex-wrap:wrap;}
 .citas-filter-btn{font-size:11px;padding:5px 12px;border-radius:100px;border:1.5px solid rgba(139,110,82,.18);background:transparent;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;color:var(--brown2);transition:all .2s;}
 .citas-filter-btn.active{background:var(--rose);color:white;border-color:var(--rose);}
@@ -1632,9 +1667,21 @@ body.v2{
 
     <!-- HORARIO -->
     <div class="admin-section" id="tabHorario">
-      <p style="font-size:13px;color:var(--brown1);margin-bottom:1rem;">Activa días y define horarios.</p>
+      <div class="blk-section-title">Días de la semana <span>cierres recurrentes</span></div>
+      <p style="font-size:13px;color:var(--brown1);margin-bottom:1rem;">Activa días y define horarios. Un día apagado se cierra <strong>todas las semanas</strong>.</p>
       <div id="scheduleEditor"></div>
       <button class="save-btn" onclick="saveSchedule()">Guardar horario</button>
+
+      <hr class="blk-hr">
+      <div class="blk-section-title">Fechas específicas <span>vacaciones, días libres</span></div>
+      <p style="font-size:13px;color:var(--brown1);margin-bottom:.875rem;">Cierra <strong>solo un día</strong> del calendario. Los demás días de esa semana siguen igual.</p>
+      <div class="blk-form">
+        <div class="form-group"><label class="form-label" for="blkDateInput">Fecha a bloquear</label><input type="date" class="edit-input" id="blkDateInput"></div>
+        <div class="form-group"><label class="form-label" for="blkReasonInput">Motivo (opcional, solo lo ves tú)</label><input type="text" class="edit-input" id="blkReasonInput" maxlength="60" placeholder="Ej: Vacaciones, cita médica..."></div>
+        <button type="button" class="save-btn" id="btnBlockDate" onclick="adminBlockDate()">Bloquear fecha</button>
+      </div>
+      <div class="blk-list-title">Fechas bloqueadas</div>
+      <div id="blockedDatesList"></div>
     </div>
 
     <!-- ADMIN RESEÑAS -->
@@ -1698,6 +1745,14 @@ let schedule=[
   {day:'Sábado',active:true,from:'09:00',to:'19:00'},    // 6
 ];
 window._schedule = schedule;
+// Fechas específicas bloqueadas (se cargan desde Firebase: config/fechasBloqueadas)
+window._blockedDates = window._blockedDates || [];
+function getBlockedDate(key) {
+  var list = window._blockedDates || [];
+  for (var i = 0; i < list.length; i++) if (list[i] && list[i].fecha === key) return list[i];
+  return null;
+}
+function isDateBlocked(key) { return !!getBlockedDate(key); }
 const catIcons={manos:'💅',pies:'🦶',otros:'✦'};
 const catTitles={manos:'Manos',pies:'Pies',otros:'Otros'};
 const monthNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -2089,8 +2144,8 @@ function renderCalendar() {
   for(let d=1;d<=days;d++){
     const date=new Date(y,m,d);
     const isPast=date<new Date(today.getFullYear(),today.getMonth(),today.getDate());
-    const isOff=!sched[date.getDay()].active;
     const key=y+'-'+m+'-'+d;
+    const isOff=!sched[date.getDay()].active || isDateBlocked(key);
     const isSel=selectedDay===key, isToday=date.toDateString()===today.toDateString();
     const hasBk=(window.bookedSlots||{})[key]&&window.bookedSlots[key].length>0;
     let cls='cal-day';
@@ -2142,6 +2197,7 @@ function renderTimeSlots(key) {
   }
 
   var wrapper=document.getElementById('slotsWrapper');
+  if(isDateBlocked(key)||!sch.active){wrapper.innerHTML='<div class="slots-empty">Este día no hay citas disponibles. Elige otra fecha.</div>';return;}
   if(!allSlots.length){wrapper.innerHTML='<div class="slots-empty">Sin horario este día.</div>';return;}
 
   // Build slots using DOM to avoid escaping issues
@@ -2203,8 +2259,16 @@ async function confirmBooking() {
     document.getElementById('clientPhone').focus();
     return;
   }
+  const btn=document.getElementById('btnConfirm');
+  // La fecha pudo bloquearse mientras la clienta tenía la página abierta
+  if(isDateBlocked(selectedDay)){
+    showToast('Ese día ya no está disponible. Elige otra fecha.','error');
+    selectedTime=null; renderCalendar(); renderTimeSlots(selectedDay);
+    return;
+  }
   const p=selectedDay.split('-'); const y=parseInt(p[0]),m=parseInt(p[1]),d=parseInt(p[2]);
-  const sch=schedule[new Date(y,m,d).getDay()]; const allSlots=genSlots(sch.from,sch.to);
+  // Usar el horario guardado por la administradora (igual que el calendario), no el de ejemplo
+  const sch=(window._schedule||schedule)[new Date(y,m,d).getDay()]; const allSlots=genSlots(sch.from,sch.to);
   const startIdx=allSlots.indexOf(selectedTime);
   const endTime=addMins(selectedTime,service.slots*SLOT_MIN);
   const slotsToBook=[];
@@ -2225,8 +2289,8 @@ async function confirmBooking() {
     }
   }
   const conflict=slotsToBook.some(s=>booked.includes(s));
+  if(startIdx<0){showToast('Esa hora ya no está disponible. Elige otra.','error');selectedTime=null;renderTimeSlots(selectedDay);return;}
   if(conflict){showToast('Ese horario ya fue reservado. Elige otro.','error');renderTimeSlots(selectedDay);return;}
-  const btn=document.getElementById('btnConfirm');
   btn.disabled=true; btn.innerHTML='<div class="spinner"></div>';
   const cita={
     name, phone, dateKey:selectedDay,
@@ -2297,7 +2361,7 @@ function doLogout() {
   isAdmin=false; const btn=document.getElementById('adminNavBtn'); btn.textContent='Admin'; btn.style.cssText='';
   document.getElementById('adminPanel').classList.remove('open');
 }
-function openAdmin() { renderCitas(); renderServicesEditor(); renderScheduleEditor(); renderAdminPortfolio(); loadCategories(); document.getElementById('adminPanel').classList.add('open'); }
+function openAdmin() { renderCitas(); renderServicesEditor(); renderScheduleEditor(); renderBlockedDatesEditor(); renderAdminPortfolio(); loadCategories(); document.getElementById('adminPanel').classList.add('open'); }
 function closeAdmin() { document.getElementById('adminPanel').classList.remove('open'); }
 function switchTab(btn,tabId) {
   document.querySelectorAll('.admin-tab').forEach(t=>t.classList.remove('active'));
@@ -2591,6 +2655,124 @@ async function saveSchedule() {
   if(ok){renderCalendar();showToast('✅ Horario guardado permanentemente');}
   else showToast('Error al guardar','error');
 }
+
+// ── ADMIN: FECHAS ESPECÍFICAS BLOQUEADAS ──
+// Clave de fecha con el mismo formato que las citas: "AAAA-M-D" con mes empezando en 0
+function blkKeyFromInput(value) {
+  var p = (value || '').split('-');
+  if (p.length !== 3) return null;
+  var y = parseInt(p[0], 10), m = parseInt(p[1], 10) - 1, d = parseInt(p[2], 10);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
+  return y + '-' + m + '-' + d;
+}
+function blkDateFromKey(key) {
+  var p = key.split('-');
+  return new Date(parseInt(p[0], 10), parseInt(p[1], 10), parseInt(p[2], 10));
+}
+function blkLabel(key) {
+  var dias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  var dt = blkDateFromKey(key);
+  return dias[dt.getDay()] + ' ' + dt.getDate() + ' de ' + monthNames[dt.getMonth()].toLowerCase() + ' de ' + dt.getFullYear();
+}
+function blkEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+  });
+}
+function blkTodayCR() {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Costa_Rica' }));
+}
+// Citas activas (pendientes o confirmadas) en una fecha: el bloqueo NO las toca, solo avisa
+function blkActiveCitas(key) {
+  return (window.citasList || []).filter(function(c) { return c.dateKey === key && c.status !== 'cancelada'; });
+}
+
+function renderBlockedDatesEditor() {
+  var el = document.getElementById('blockedDatesList');
+  if (!el) return;
+  var input = document.getElementById('blkDateInput');
+  var t = blkTodayCR();
+  if (input) input.min = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+  var today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  // Solo se muestran fechas de hoy en adelante (las pasadas ya no afectan reservas)
+  var list = (window._blockedDates || []).filter(function(b) { return b && b.fecha && blkDateFromKey(b.fecha) >= today; });
+  list.sort(function(a, b) { return blkDateFromKey(a.fecha) - blkDateFromKey(b.fecha); });
+  if (!list.length) { el.innerHTML = '<div class="blk-empty">No hay fechas bloqueadas.</div>'; return; }
+  el.innerHTML = '';
+  list.forEach(function(b) {
+    var row = document.createElement('div');
+    row.className = 'blk-item';
+    var citas = blkActiveCitas(b.fecha);
+    var info = document.createElement('div');
+    info.innerHTML = '<div class="blk-item-date">🚫 ' + blkEsc(blkLabel(b.fecha)) + '</div>' +
+      (b.motivo ? '<div class="blk-item-reason">' + blkEsc(b.motivo) + '</div>' : '') +
+      (citas.length ? '<div class="blk-item-warn">⚠ Tiene ' + citas.length + (citas.length === 1 ? ' cita activa' : ' citas activas') + ' (revisa la pestaña Citas)</div>' : '');
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'blk-unblock';
+    btn.textContent = 'Desbloquear';
+    btn.addEventListener('click', function() { adminUnblockDate(b.fecha); });
+    row.appendChild(info);
+    row.appendChild(btn);
+    el.appendChild(row);
+  });
+}
+
+async function adminBlockDate() {
+  var input = document.getElementById('blkDateInput');
+  var reasonInput = document.getElementById('blkReasonInput');
+  var key = blkKeyFromInput(input.value);
+  if (!key) { showToast('Selecciona una fecha', 'error'); return; }
+  var t = blkTodayCR();
+  if (blkDateFromKey(key) < new Date(t.getFullYear(), t.getMonth(), t.getDate())) { showToast('Esa fecha ya pasó', 'error'); return; }
+  if (isDateBlocked(key)) { showToast('Esa fecha ya está bloqueada', 'error'); return; }
+
+  // Avisar si ya hay citas ese día (no se modifican ni se eliminan)
+  var citas = blkActiveCitas(key);
+  if (citas.length) {
+    var detalle = citas.map(function(c) {
+      return '• ' + (c.name || 'Clienta') + ' — ' + (c.time || '') + ' (' + (c.status || 'pendiente') + ')';
+    }).join('\n');
+    var seguir = confirm('⚠ El ' + blkLabel(key) + ' ya tiene ' + citas.length + (citas.length === 1 ? ' cita' : ' citas') + ':\n\n' + detalle +
+      '\n\nSi bloqueas la fecha, estas citas NO se cancelan ni se borran: siguen en la pestaña Citas y tendrás que avisarle a cada clienta.\nSolo se impedirán nuevas reservas.\n\n¿Bloquear de todas formas?');
+    if (!seguir) return;
+  }
+
+  var btn = document.getElementById('btnBlockDate');
+  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Guardando...';
+  var motivo = (reasonInput.value || '').trim().slice(0, 60);
+  var nueva = (window._blockedDates || []).filter(function(b) { return b && b.fecha !== key; });
+  nueva.push({ fecha: key, motivo: motivo });
+  var ok = await window.saveBlockedDatesToDB(nueva);
+  btn.disabled = false; btn.textContent = 'Bloquear fecha';
+  if (ok) {
+    input.value = ''; reasonInput.value = '';
+    showToast('✅ Fecha bloqueada: ' + blkLabel(key));
+  } else {
+    showToast('Error al bloquear la fecha. Intenta de nuevo.', 'error');
+  }
+}
+
+async function adminUnblockDate(key) {
+  if (!confirm('¿Desbloquear el ' + blkLabel(key) + '?\nLas clientas podrán volver a reservar ese día según el horario habitual.')) return;
+  var nueva = (window._blockedDates || []).filter(function(b) { return b && b.fecha !== key; });
+  var ok = await window.saveBlockedDatesToDB(nueva);
+  if (ok) showToast('✅ Fecha desbloqueada');
+  else showToast('Error al desbloquear. Intenta de nuevo.', 'error');
+}
+
+// Se llama cada vez que cambian las fechas bloqueadas en Firebase
+window.onBlockedDatesChange = function() {
+  renderCalendar();
+  if (selectedDay) {
+    if (isDateBlocked(selectedDay)) selectedTime = null;
+    renderTimeSlots(selectedDay);
+  }
+  if (typeof window.v2UpdateAvailability === 'function') window.v2UpdateAvailability();
+  if (isAdmin) renderBlockedDatesEditor();
+};
+// Las advertencias de "cita activa" se actualizan cuando cambian las citas
+window.refreshBlockedDatesEditor = function() { if (isAdmin) renderBlockedDatesEditor(); };
 // ══════════════════════════════════════
 //  ANIMACIONES
 // ══════════════════════════════════════
@@ -2696,6 +2878,7 @@ window.v2UpdateAvailability = function() {
       if (!sch || !sch.active) continue;
       var slots = genSlots(sch.from, sch.to);
       var key = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+      if (isDateBlocked(key)) continue;
       var booked = (window.bookedSlots || {})[key] || [];
       var dayOk = false;
       for (var s = 0; s + needed <= slots.length && !dayOk; s++) {
